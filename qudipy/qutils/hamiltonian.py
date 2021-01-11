@@ -114,6 +114,7 @@ def ham_interp(i_params):
         Ay = np.array([[0, -1j], [1j, 0]], dtype=complex)
         Az = np.array([[1, 0], [0, -1]], dtype=complex)
         Ao = np.eye(2)
+        # A+ and A-
         A_p = 0.5 * (Ax + 1j * Ay)
         A_m = 0.5 * (Ax - 1j * Ay)
 
