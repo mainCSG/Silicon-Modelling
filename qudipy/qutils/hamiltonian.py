@@ -27,10 +27,10 @@ def ham_interp(i_params):
             H_RS = build_2DSE_hamiltonian(params.PotInterp.constants, gparams)
 
     if 'effOrbital' in params.HamType:
-        n_dots = min(len(params.TC)+1, len(params.Eps), len(params.OSplit))
+        n_dots = min(len(params.TC) + 1, len(params.Eps), len(params.OSplit))
 
-        if n_dots < max(len(params.TC)+1, len(params.Eps), len(params.OSplit)):
-            params.TC = params.TC[:n_dots-1]
+        if n_dots < max(len(params.TC) + 1, len(params.Eps), len(params.OSplit)):
+            params.TC = params.TC[:n_dots - 1]
             params.Eps = params.Eps[:n_dots]
             params.OSplit = params.OSplit[:n_dots]
             print(f'Supplied data inconsistent, calculating H for a {n_dots}QD-system')
@@ -39,38 +39,41 @@ def ham_interp(i_params):
         blocks = np.multiply.outer(params.TC, np.ones((2, 2), int))
         off = np.empty((0, 2), int)
         effH_O = block_diag(off.T, *blocks, off) + block_diag(off, *blocks, off.T) + \
-                 np.diag(np.insert(np.array(params.OSplit)+np.array(params.Eps), slice(None, None, 1), params.Eps))
+                 np.diag(np.insert(np.array(params.OSplit) + np.array(params.Eps), slice(None, None, 1), params.Eps))
 
     if 'effSpin' in params.HamType:
         n_dots = min(len(params.TC) + 1, len(params.Eps), len(params.VSplit))
 
         if n_dots < max(len(params.TC) + 1, len(params.Eps), len(params.VSplit)):
-           params.TC = params.TC[:n_dots - 1]
-           params.Eps = params.Eps[:n_dots]
-           params.VSplit = params.VSplit[:n_dots]
-           params.Eta = params.Eta[:n_dots]
-           print(f'Supplied data inconsistent, calculating H for a {n_dots}QD-system')
+            params.TC = params.TC[:n_dots - 1]
+            params.Eps = params.Eps[:n_dots]
+            params.VSplit = params.VSplit[:n_dots]
+            print(f'Supplied data inconsistent, calculating H for a {n_dots}QD-system')
 
         # Two level operators
         Ax = np.array([[0, 1], [1, 0]], dtype=complex)
         Ay = np.array([[0, -1j], [1j, 0]], dtype=complex)
         Az = np.array([[1, 0], [0, -1]], dtype=complex)
         Ao = np.eye(2)
-        A_p = 0.5*(Ax + 1j * Ay)
-        A_m = 0.5*(Ax - 1j * Ay)
+        A_p = 0.5 * (Ax + 1j * Ay)
+        A_m = 0.5 * (Ax - 1j * Ay)
         # 3D arrays storing k operators for all dots
         k_d = np.zeros((n_dots, n_dots, n_dots), dtype=complex)
         k_d[np.diag_indices(n_dots, ndim=3)] = np.ones((n_dots))
-        k_x = np.array([np.roll(np.pad(Ax, ((0,n_dots-2), (0,n_dots-2))), (n, n), axis=(0, 1)) for n in range(n_dots-1)])
-        k_y = np.array([np.roll(np.pad(Ay, ((0,n_dots-2), (0,n_dots-2))), (n, n), axis=(0, 1)) for n in range(n_dots-1)])
-        k_z = np.array([np.roll(np.pad(Az, ((0,n_dots-2), (0,n_dots-2))), (n, n), axis=(0, 1)) for n in range(n_dots-1)])
+        k_x = np.array(
+            [np.roll(np.pad(Ax, ((0, n_dots - 2), (0, n_dots - 2))), (n, n), axis=(0, 1)) for n in range(n_dots - 1)])
+        k_x = np.einsum("i,ijk->ijk", params.TC, k_x)
+        k_y = np.array(
+            [np.roll(np.pad(Ay, ((0, n_dots - 2), (0, n_dots - 2))), (n, n), axis=(0, 1)) for n in range(n_dots - 1)])
+        k_z = np.array(
+            [np.roll(np.pad(Az, ((0, n_dots - 2), (0, n_dots - 2))), (n, n), axis=(0, 1)) for n in range(n_dots - 1)])
         k_0 = np.eye(n_dots)
 
-        effH_S = np.sum(np.kron(np.kron(k_d*params.Eps, Ao), Ao) + np.kron(np.kron(k_d*params.VSplit, A_p), Ao) + \
-                       np.kron(np.kron(k_d*params.Vplit, A_m), Ao), axis=2) + \
-                np.sum(np.kron(np.kron(k_x*params.TC, Ao), Ao) + np.kron(np.kron(k_z*params.Eta[0], Ao), Ax) + \
-                       np.kron(np.kron(k_y * params.Eta[0], Ao), Ax), axis=2) + \
-                np.kron(np.kron(k_0 * params.Ez, Ao), Az)
+        effH_S = np.sum(
+            np.kron(np.kron(k_d * params.Eps, Ao), Ao) + np.kron(np.kron(k_d * params.VSplit, A_p), Ao) + np.kron(
+                np.kron(k_d * params.VSplit, A_m), Ao), axis=0) + np.sum(
+            np.kron(np.kron(k_x, Ao), Ao) + np.kron(np.kron(k_z * params.Eta[0], Ao), Ax) + np.kron(
+                np.kron(k_y * params.Eta[0], Ao), Ax), axis=0) + np.kron(np.kron(k_0 * params.Ez, Ao), Az)
 
     return H_RS, effH_O, effH_S
 
@@ -83,7 +86,7 @@ def extract_dict(i_params):
     if not hasattr(params, 'HamType'):
         # Assign a HamType based on the available parameter attributes
         params.HamType = [compat_types[compat_params.index(row)] for row in compat_params
-                          if(set(row).issubset(set(params.__dict__)))]
+                          if (set(row).issubset(set(params.__dict__)))]
         # Raise error if no HamType can be formed
         if not params.HamType:
             raise ValueError('Supplied parameters are insufficient to form supported Hamiltonians')
