@@ -10,7 +10,26 @@ The below guidelines are relatively obvious. The aim of this document is to stan
 
 4. External repositories are allowed as long as they are well maintained (for example numpy, scikit-learn, pandas, tqdm). This is subjective, so use your judgement.
 
-5. Every function needs to have a docstring where there Parameters, Keyword Arguments, and Returns variables are clarified. An example of a good docstring is shown in qudipy/potential/potentialInterpolator.py. If you are using an external source as a reference (such as an academic paper or blog post), make sure to reference it in the docstring description.
+5. Every function needs to have a docstring where there Parameters, Keyword Arguments, and Returns variables are clarified. An example of a good docstring is shown in qudipy/potential/potentialInterpolator.py. If you are using an external source as a reference (such as an academic paper or blog post), make sure to reference it in the docstring description. The general format for a docstring is
+
+```
+Parameters
+----------
+var_1 : type
+    Description.
+var_2 : type
+    Description.
+   
+Keyword Arguments
+-----------------
+var_3 : type, optional
+    Description.
+        
+Returns
+-------
+var_ret: type
+     Description. 
+```
 
 6. If you have added code you believe accomplishes a mathematically non-trivial task, please add a short write up of the procedure to the QuDiPy math write up document: https://www.overleaf.com/3252553442tbqcmxntqvtk. You can then reference your write up in the appropriate function's docstring.
 
@@ -18,9 +37,12 @@ The below guidelines are relatively obvious. The aim of this document is to stan
 	* `import qudipy as qd`
 	* `import qudipy.potential as pot`
 	* `import qudipy.chargestability as csd`
+	* `import qudipy.qutils.math as qmath`
+	* `import qudipy.qutils.matrices as matr`
+	* `import qudipy.spinsimulator.spin_simulator as sps`
 
 8. Common qudipy classes should be implemented as (although in somecases this may not always be appropriate):
-	* `gparams = qd.potential.GridParameters()` or `gparams.pot.GridParameters()`
+	* `gparams = qd.potential.GridParameters()` or `gparams = pot.GridParameters()`
 	* `consts = qd.Constants()`
 
 9. Common external repositories should be loaded as:
