@@ -118,19 +118,23 @@ def ham_interp(i_params):
         A_p = 0.5 * (Ax + 1j * Ay)
         A_m = 0.5 * (Ax - 1j * Ay)
 
-        # 3D arrays storing k operators for all dots
-        k_d = np.zeros((n_dots, n_dots, n_dots), dtype=complex)
-        k_d[np.diag_indices(n_dots, ndim=3)] = np.ones((n_dots))
-        k_x = np.array(
-            [np.roll(np.pad(Ax, ((0, n_dots - 2), (0, n_dots - 2))), (n, n), axis=(0, 1)) for n in range(n_dots - 1)])
-        k_x = np.einsum("i,ijk->ijk", params.TC, k_x)
-        k_y = np.array(
-            [np.roll(np.pad(Ay, ((0, n_dots - 2), (0, n_dots - 2))), (n, n), axis=(0, 1)) for n in range(n_dots - 1)])
-        k_z = np.array(
-            [np.roll(np.pad(Az, ((0, n_dots - 2), (0, n_dots - 2))), (n, n), axis=(0, 1)) for n in range(n_dots - 1)])
+        # Initialize 3D arrays storing k operators for all dots
+        k_d = np.zeros((n_dots,)*3, dtype=complex)
+        k_x, k_y, k_z = np.zeros((n_dots-1, n_dots, n_dots), dtype=complex),  np.zeros((n_dots-1, n_dots, n_dots), dtype=complex), \
+                        np.zeros((n_dots - 1, n_dots, n_dots), dtype=complex)
         k_0 = np.eye(n_dots)
 
+        # Fill diagonals
+        k_d[np.diag_indices(n_dots, ndim=3)] = np.ones((n_dots))
+        k_x[:, :-1, 1:][np.diag_indices(n_dots-1, ndim=3)] = np.ones((n_dots-1))
+        k_x[:, 1:, :-1][np.diag_indices(n_dots-1, ndim=3)] = np.ones((n_dots-1))
+        k_y[:, :-1, 1:][np.diag_indices(n_dots - 1, ndim=3)] = np.ones((n_dots - 1)) * -1j
+        k_y[:, 1:, :-1][np.diag_indices(n_dots - 1, ndim=3)] = np.ones((n_dots - 1)) * 1j
+        k_z[np.diag_indices(n_dots-1, ndim=3)] = np.ones((n_dots-1))
+        k_z[:, 1:, 1:][np.diag_indices(n_dots - 1, ndim=3)] = np.ones((n_dots - 1)) * -1
+
         # Generate H using repeated Kronecker products, 3D arrays summed along 3rd dimension
+        k_x = np.einsum("i,ijk->ijk", params.TC, k_x)
         effH_S = np.sum(
             np.kron(np.kron(k_d * params.Eps, Ao), Ao) + np.kron(np.kron(k_d * params.VSplit, A_p), Ao) + np.kron(
                 np.kron(k_d * params.VSplit, A_m), Ao), axis=0) + np.sum(
