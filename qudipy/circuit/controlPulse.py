@@ -128,7 +128,47 @@ class ControlPulse:
         '''
         return deepcopy(self)
     
-    def plot(self, plot_ctrls='all', time_int='full', n=250, show_inner=False):
+    def __get_base_pulse(self, get_inner=False):
+        '''
+        Will return the base control pulse as a 2D array where the first index
+        corresponds to the pulse values for each variable and the second index
+        corresponds to a different control variable. The second index is ordered
+        according to the .ctrl_names attribute.
+
+        Keyword Arguments
+        -----------------
+        get_inner : bool, optional
+            Will return the base pulse in terms of the inner control pulse
+            layer (if it exists).
+
+        Returns
+        -------
+        base_pulse : 2D array
+            A 2D array composed of each variable control pulses.
+
+        '''
+        
+        if not hasattr(self,'ctrl_names_inner') and get_inner:
+            raise ValueError("Cannot return the base pulse in terms of the"+ 
+                             "inner layer because a control mapptin has not"+ 
+                             "been defined.")
+        elif get_inner:
+            ctrl_dict = self.ctrl_pulses_inner
+            names = self.ctrl_names_inner
+        else:
+            ctrl_dict = self.ctrl_pulses
+            names = self.ctrl_names
+        
+        # Now populate the inner dictionary of inner control pulses
+        base_pulse = np.zeros((len(list(ctrl_dict.values())[0]),
+                               len(names)))
+        for idx, ctrl_base in enumerate(names):
+            base_pulse[:,idx] = ctrl_dict[ctrl_base]
+            
+        return base_pulse
+    
+    def plot(self, plot_ctrls='all', time_int='full', n='base', show_inner=False,
+             show_base=False):
         '''
         Plot the control pulse. Can plot a subset of the control variables 
         and within some time interval.
@@ -144,11 +184,15 @@ class ControlPulse:
             is the full time interval.
         n : int, optional
             Number of points to use in the pulse when plotting. The default is
-            250.
+            the number of points in the base control pulse.
         show_inner : bool, optional
             Will show the pulse in terms of the inner control variable layer
             if it exists. The default is False which plots the outer control
             variable layer.
+        show_base : bool, optional
+            Will show the pulse points without any interpolation (i.e. 
+            step-like interpolation). Ignores time_int and n keyword arguments.
+            The default is False.
 
         Returns
         -------
@@ -163,11 +207,28 @@ class ControlPulse:
         else:
             min_time = time_int[0]
             max_time = time_int[1]
-            
-        t_pts = np.linspace(min_time,max_time,n)
+                    
+        # Get the actual pulse and corresponding time points
+        if show_base or n == 'base':
+            # If ctrl_time is not defined, then we need to initialize the
+            # control interpolators
+            if self.ctrl_time is None:
+                self.__generate_ctrl_interpolators()
+                
+            t_pts = self.ctrl_time
+        else:
+            if not isinstance(n, int):
+                raise ValueError('n must be an integer or ''base''.')
+            t_pts = np.linspace(min_time,max_time,n)
         
-        # Get the actual pulse
-        pulse = self(t_pts, show_inner)
+        if show_base:
+            pulse = self.__get_base_pulse(show_inner)
+            # Check if the interpolators have been constructed. If not, then 
+            # make them.
+            if not hasattr(self,'ctrl_interps'):
+                self.__generate_ctrl_interpolators()
+        else:
+            pulse = self(t_pts, show_inner)
         
         # Check the plot_ctrls input
         if not isinstance(plot_ctrls,(list,tuple,set)):
@@ -223,7 +284,11 @@ class ControlPulse:
             
         # Generate figure
         plt.figure()
-        plt.plot(t_pts*scale, pulse[:,ctrl_idxs])   
+        if show_base:
+            plt.plot(t_pts*scale, pulse[:,ctrl_idxs], marker='o', 
+                     linestyle='None')    
+        else:
+            plt.plot(t_pts*scale, pulse[:,ctrl_idxs])   
         if show_inner:
             lgd_names = [self.ctrl_names_inner[idx] for idx in ctrl_idxs]
         else:
@@ -231,7 +296,6 @@ class ControlPulse:
         plt.legend(lgd_names,loc='best')
         plt.xlabel('Time ' + units)
         plt.show()
-        
         
     def set_pulse_length(self, pulse_length):
         '''
@@ -278,7 +342,7 @@ class ControlPulse:
         var_name : string
             Name of new control variable being added.
         var_pulse : 1D array
-            DESCRIPTION.
+            The corresponding control pulse for the added control variable.
 
         Returns
         -------
@@ -409,12 +473,9 @@ class ControlPulse:
         if not ctrl_name in self.ctrl_names_inner:
             self.ctrl_names_inner.append(ctrl_name)
             self.n_ctrls_inner = len(self.ctrl_names_inner)
-            
-        # Now populate the inner dictionary of inner control pulses
-        outer_pulse = np.zeros((len(list(self.ctrl_pulses.values())[0]),
-                               len(self.ctrl_names)))
-        for idx, ctrl_outer in enumerate(self.ctrl_names):
-            outer_pulse[:,idx] = self.ctrl_pulses[ctrl_outer]
+           
+        # Get out control pulse
+        outer_pulse = self.__get_base_pulse()
 
         self.ctrl_pulses_inner[ctrl_name] = interp_obj(outer_pulse)
         
