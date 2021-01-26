@@ -265,22 +265,23 @@ def analytical_potential(ctrl_vals, ctrl_names, function, x_range, y_range):
         Function which defines the 2D potential you wish to map out. function
         must take the list ctrl_vals as the first argument and a GridParameters 
         object as the second argument. Refer to tutorial for an explicit example
-    x_range : List or Numpy array
+    x_range : 1D List or Numpy array
         grid points along x where you want to potential to be calculated
-    y_range : List or Numpy array
+    y_range : 1D List or Numpy array
         grid points along y where you want to potential to be calculated
 
     Returns
     -------
     analytical_potential : dictionary
-        Contains all the information necessary to create an interpolator from the 
-        analytical potential.
+        Dictionary containing the x and y coordinates, the potential at each
+        coordinate point, and the control variable vector and control variable
+        name.
     '''
 
     # From the x and y ranges provided, create the GridParameters
     gparams = GridParameters(x_range, y_range)
 
-    # Go over all products of control values and 
+    # Go over all products of control values and calculate potential
     cval_array = []
     pots_array = []
     for curr_cvals in product(*ctrl_vals):
