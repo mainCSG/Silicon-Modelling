@@ -283,7 +283,7 @@ def analytical_potential(ctrl_vals, ctrl_names, function, x_range, y_range):
     # Go over all products of control values and 
     cval_array = []
     pots_array = []
-    for _, curr_cvals in enumerate(product(*ctrl_vals)):
+    for curr_cvals in product(*ctrl_vals):
         pots_array.append(function(curr_cvals, gparams))
         cval_array.append(list(curr_cvals))
 
