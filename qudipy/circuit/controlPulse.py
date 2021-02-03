@@ -81,6 +81,9 @@ class ControlPulse:
 
         '''
         
+        if isinstance(time_pts,(int,float)):
+            time_pts = [time_pts]
+        
         # Check that we actually have a valid pulse length set
         if self.length == -1:
             print('Cannot call control pulse object.\nPulse length has not '+
@@ -96,6 +99,7 @@ class ControlPulse:
         # Loop through each control variable and get the interpolated pulse
         # for each time point.
         interp_pulse = np.zeros((len(time_pts),len(self.ctrl_names)))
+
         for ctrl_idx, ctrl in enumerate(self.ctrl_names):
             interp_pulse[:,ctrl_idx] = self.ctrl_interps[ctrl](time_pts)
             
@@ -332,7 +336,7 @@ class ControlPulse:
         if hasattr(self,'ctrl_interps'):
             self.__generate_ctrl_interpolators()
         
-    def add_control_variable(self, var_name, var_pulse):
+    def add_control_variable(self, var_name, var_pulse, overwrite=False):
         '''
         Adds a control variable to the pulse. If the variable name is time,
         then it will store the time points in the ctrl_time variable.
@@ -344,12 +348,30 @@ class ControlPulse:
         var_pulse : 1D array
             The corresponding control pulse for the added control variable.
 
+        Keyword Arguments
+        -----------------
+        overwrite : bool
+            If a control variable already exists with the given var_name, this
+            keyword will allow the user to overwrite the previous control
+            variable. The default is False.
+
         Returns
         -------
         None.
 
         '''
         
+        # Check if the control variable already exists and warn user about
+        # overwriting it.
+        if var_name in self.ctrl_names and not overwrite:
+            raise Warning("There already exists a pulse for the control "+
+                          f"variable {var_name}. \n If you wish to overwrite "+
+                          "this mapping, set the keyword arg overwrite=True.")
+
+            return
+        elif var_name in self.ctrl_names and overwrite: 
+            self.ctrl_names.remove(var_name)
+    
         # Check that the new control variable pulse has the same number of 
         # points as all the other control variables (if this is first one, 
         # then save the number of points)
@@ -377,6 +399,12 @@ class ControlPulse:
             # compatible, we will manually append our own list.
             self.ctrl_names.append(var_name)
             self.n_ctrls = len(self.ctrl_names)
+            
+        # Now regenerate the control interpolators, but don't do so if no 
+        # control variables have been specified (i.e. time was specified first
+        # before and control variables)
+        if len(self.ctrl_names) > 0:
+            self.__generate_ctrl_interpolators()
             
     def __generate_ctrl_interpolators(self):
         '''
@@ -421,14 +449,26 @@ class ControlPulse:
 
         Parameters
         ----------
-        map_grid : TYPE
-            DESCRIPTION.
-        map_data : TYPE
-            DESCRIPTION.
-        ctrl_name : TYPE
-            DESCRIPTION.
-        overwrite : TYPE
-            DESCRIPTION.
+        map_grid : tuple
+            The set of grid vectors corresponding for the outer control
+            variables. The number of grid vectors len(map_grid) must equal the
+            number of outer control variables len(self.ctrl_names)
+        map_data : nd array
+            An nd grid containing the control variable mapping data. The
+            number of dimensions must equal the number of grid vectors.
+            Additionally, the number of elements in each grid dimension must
+            match the corresponding number of values for each grid vector in
+            map_grid.
+        ctrl_name : string
+            Name of the new inner control variable that a mapping is being
+            defined.
+
+        Keyword Arguments
+        -----------------
+        overwrite : bool
+            If a control variable already exists with the given var_name, this
+            keyword will allow the user to overwrite the previous control
+            variable. The default is False.
 
         Returns
         -------
