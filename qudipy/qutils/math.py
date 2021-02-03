@@ -40,27 +40,6 @@ def inner_prod(gparams, wf1, wf2):
                                      x=gparams.x, axis=1), gparams.y)
             
     return inn_prod
-
-def expectation_value(gparams, wavefunc, observable):
-    '''
-    Parameters
-    ----------
-    gparams : GridParameters class
-        Contains grid and potential information.
-    wavefunc : complex array
-        'Bra' wavefunction for the inner product. If grid is 2D, then the 
-        array should be in meshgrid format.
-    observable : complex array
-        Should have the same dimensions  
-
-    Returns
-    -------
-    exp_val : complex float
-        The expectation value calculated 
-    '''
-    weighted_wavefunc = observable * wavefunc
-    exp_val = inner_prod(gparams, wavefunc, weighted_wavefunc)
-    return exp_val
    
 def project_up(rho, elem):
     """

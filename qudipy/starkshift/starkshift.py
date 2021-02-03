@@ -1,5 +1,5 @@
 # From module
-from ..qutils.math import expectation_value
+from ..qutils.math import inner_prod
 from ..qutils.solvers import solve_schrodinger_eq
 
 # From external libraries
@@ -33,9 +33,8 @@ class StarkShift:
             for wavefunc in wavefuncs:
 
                 #Calcualte the weighted average of the electric field over the wavefunction
-                avg_e = expectation_value(self.gparams, wavefunc, np.square(new_e))
+                avg_e = self._weighted_average(wavefunc, np.square(new_e))
             
-                # Multiply by the ratio that was found in https://doi.org/10.1038/nnano.2014.216
                 delta_g = mu_2 * avg_e
                 delta_g_list.append(np.real(delta_g))
 
@@ -47,6 +46,28 @@ class StarkShift:
         coulmns = c_val_names + delta_gs
         df = pd.DataFrame(c_vals_delta_g, columns=coulmns)
         return df
+
+    def _weighted_average(self, wavefunc, observable):
+        '''
+        Calculates the average of an observable, weighted by the probability density of a wavefunction
+        Parameters
+        ----------
+        gparams : GridParameters class
+            Contains grid and potential information.
+        wavefunc : complex array
+            'Bra' wavefunction for the inner product. If grid is 2D, then the 
+            array should be in meshgrid format.
+        observable : complex array
+            Should have the same dimensions  
+
+        Returns
+        -------
+        exp_val : complex float
+            The expectation value calculated 
+        '''
+        weighted_wavefunc = observable * wavefunc
+        exp_val = inner_prod(self.gparams, wavefunc, weighted_wavefunc)
+        return exp_val
 
 
 
