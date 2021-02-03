@@ -32,12 +32,15 @@ def inner_prod(gparams, wf1, wf2):
         The inner product between the two inputted wavefunctions.
 
     '''
-    
-    if gparams.grid_type == '1D':
-        inn_prod = np.trapz(np.multiply(wf1.conj(),wf2), x=gparams.x)
-    elif gparams.grid_type == '2D':
-        inn_prod = np.trapz(np.trapz(np.multiply(wf1.conj(), wf2), 
-                                     x=gparams.x, axis=1), gparams.y)
+    if wf1.shape == wf2.shape():
+        if gparams.grid_type == '1D':
+            inn_prod = np.trapz(np.multiply(wf1.conj(),wf2), x=gparams.x)
+        elif gparams.grid_type == '2D':
+            inn_prod = np.trapz(np.trapz(np.multiply(wf1.conj(), wf2), 
+                                        x=gparams.x, axis=1), gparams.y)
+    else:
+        raise ValueError("Wavefunctions have different dimensions. wf1 has shape {0} and wf2 has \
+                          shape {1}".format(wf1.shape, wf2.shape))
             
     return inn_prod
 
@@ -51,15 +54,19 @@ def expectation_value(gparams, wavefunc, observable):
         'Bra' wavefunction for the inner product. If grid is 2D, then the 
         array should be in meshgrid format.
     observable : complex array
-        Should have the same dimensions  
+        Should have the same dimensions as wavefunc 
 
     Returns
     -------
     exp_val : complex float
         The expectation value calculated 
     '''
-    weighted_wavefunc = observable * wavefunc
-    exp_val = inner_prod(gparams, wavefunc, weighted_wavefunc)
+    if wavefunc.shape == observable.shape():
+        weighted_wavefunc = observable * wavefunc
+        exp_val = inner_prod(gparams, wavefunc, weighted_wavefunc)
+    else:
+        raise ValueError("Wavefunction and observable have different dimensions. wavefunc has shape {0} and observable has \
+                          shape {1}".format(wavefunc.shape, observable.shape))
     return exp_val
    
 def project_up(rho, elem):
