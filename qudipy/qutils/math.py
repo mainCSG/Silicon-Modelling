@@ -62,6 +62,7 @@ def expectation_value(gparams, wavefunc, observable):
         The expectation value calculated 
     '''
     if wavefunc.shape == observable.shape():
+        # Calculate observable weighted by the wavefunction
         weighted_wavefunc = observable * wavefunc
         exp_val = inner_prod(gparams, wavefunc, weighted_wavefunc)
     else:
