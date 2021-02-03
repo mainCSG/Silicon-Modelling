@@ -255,7 +255,7 @@ def analytical_potential(ctrl_vals, ctrl_names, function, x_range, y_range):
     Parameters
     ----------
     ctrl_vals : list of list of floats
-        List of relevant control values for the files to load.  The first list
+        List of relevant control values used to define the potential. The first list
         index corresponds to the ith control variable and the second list
         index correspond to the ith value for that control variable.
     ctrl_names : list of strings
@@ -288,12 +288,12 @@ def analytical_potential(ctrl_vals, ctrl_names, function, x_range, y_range):
         pots_array.append(function(curr_cvals, gparams))
         cval_array.append(list(curr_cvals))
 
-    # Create named tuple for coordinates 
+    # Create named tuple for coordinates
     Coordinates = namedtuple('Coordinates',['x','y'])
 
     # Load everything into a dictionary that is returned
     analytic_potential = {}
-    analytic_potential['coords'] = Coordinates(x_range,y_range)
+    analytic_potential['coords'] = Coordinates(x_range, y_range)
     analytic_potential['ctrl_vals'] = cval_array
     analytic_potential['ctrl_names'] = ctrl_names
     analytic_potential['potentials'] = pots_array
