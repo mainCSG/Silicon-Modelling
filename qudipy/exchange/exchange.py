@@ -7,8 +7,10 @@ Functions for calculating the exchange interaction.
 import numpy as np
 import math
 import qudipy as qd
-from scipy.linalg import eig
+from scipy.linalg import eigh
+import scipy.misc.comb as comb
 from scipy.optimize import minimize
+from scipy.special import gamma, beta
 
 def optimize_HO_omega(gparams, nx, ny=None, ecc=1.0, omega_guess=1E15, 
                       n_SE_orbs=2, opt_tol=1E-7, consts=qd.Constants("vacuum")):
@@ -294,12 +296,12 @@ def find_H_unitary_transformation(gparams, new_basis,
     unitary : bool
         Specify if you want the unitary transformation that performs the basis
         transformation to be returned. Requires evaluation of the eigenvalue 
-        probem. The default is True.
+        problem. The default is True.
     ortho_basis : bool
         Specify if the new_basis is orthogonal or not. When False, we will 
         calculate the overlap matrix during the transformation.  When True, no
         overlap matrix is calculated. If you know ahead of time that your basis
-        is orthogonal, specifying True can save some computation overhead by 
+        is orthogonal, specifying True can save some computational overhead by 
         not calculating the overlap matrix. The default is False.
 
     Returns
@@ -377,14 +379,14 @@ def find_H_unitary_transformation(gparams, new_basis,
     if unitary is False:
         return ham_new
     else:
-        # If basis is declared to be orthogonal, assuming overlap matrix
+        # If basis is declared to be orthogonal, assume overlap matrix
         # is identity, otherwise calculate it.
         if ortho_basis is True:
-            eig_ens, U = eig(ham_new)
+            eig_ens, U = eigh(ham_new)
         else:
             S_matrix = qd.qutils.qmath.find_overlap_matrix(gparams, new_basis,
                                                            new_basis)
-            eig_ens, U = eig(ham_new, S_matrix)
+            eig_ens, U = eigh(ham_new, S_matrix)
 
     # Sort unitary by eigenvalue
     U = U[:,eig_ens.argsort()]
@@ -392,10 +394,66 @@ def find_H_unitary_transformation(gparams, new_basis,
     return ham_new, U
         
         
+def __calc_origin_CME(na, ma, nb, mb, ng, mg, nd, md):
+    
+    
+    CME = 0
+    
+    # Initialize a and p
+    a0 = na + nb + ng + nd
+    b = ma + mb + mg + md
+    pInd0 = a0 + b
         
+    # If a and b are both even, then the CME will be non-zero.  Otherwise,
+    # it will be zero and we can just skip doing all of these loops.  Note
+    # that we don't need to consider the -2*p_i terms in a and b because
+    # those are even.
+    if a0 % 2 != 0 or b % 2 != 0:
+        return(CME)
+    
+    for p1 in range(min(na,nd)+1):
+        coef1 = math.factorial(p1)*comb(na,p1)*comb(nd,p1)
         
+        # Continue building a and p
+        a1 = a0 - 2*p1;
+        pInd1 = pInd0 - 2*p1
         
+        for p2 in range(min(ma,md)+1):
+            coef2 = coef1*math.factorial(p2)*comb(ma,p2)*comb(md,p2)
+            
+            # Continue building p
+            pInd2 = pInd1 - 2*p2
+            
+            for p3 in range(min(nb,ng)+1):
+                coef3 = coef2*math.factorial(p3)*comb(nb,p3)*comb(ng,p3)
+                
+                # Finish building a and continue building and p
+                a = a1 - 2*p3
+                pInd3 = pInd2 - 2*p3
+    
+                for p4 in range(min(mb,mg)+1):                 
+                    coef4 = coef3*math.factorial(p4)*comb(mb,p4)*comb(mg,p4)
+                    
+                    # Finish building p
+                    p = (pInd3 - 2*p4)/2;
+                    
+                    # Skip this sum term if 2p is odd
+                    if p % 2 != 0:
+                        continue
+                    
+                    # Calculate the CME
+                    CME = CME + (-1)^p*coef4*gamma(p + 1/2)*\
+                        beta(p - ((a - 1)/2),(a + 1)/2);
+    
+    # Take care of the sclar coefficients
+    globPhase = (-1)^(nb + mb + ng + mg)
+    CME = CME*2/(math.pi*math.sqrt(2))*globPhase
+    CME = CME/math.sqrt(math.factorial(na)*math.factorial(ma)*\
+        math.factorial(nb)*math.factorial(mb)*math.factorial(ng)*\
+        math.factorial(mg)*math.factorial(nd)*math.factorial(md))
         
+    return(CME)
+
         
         
         
