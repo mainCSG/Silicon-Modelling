@@ -5,7 +5,8 @@ General helper utilities
 """
 
 import numpy as np
-import math
+import operator as op
+from functools import reduce
         
 def find_nearest(array, value):
     '''
@@ -40,5 +41,30 @@ def find_nearest(array, value):
     near_value = array[near_idx]
     
     return near_idx, near_value
+
+def nchoosek(n, k):
+    '''
+    Had a lot of trouble getting scipy comb to work, so just copied one from 
+    stack exchange. This function calculates the number of combinations of k 
+    elements from a set of n items.
+
+    Parameters
+    ----------
+    n : int
+        Total number of items in set.
+    k : int
+        Size of subset to make out of the full set.
+
+    Returns
+    -------
+    nCr
+        The number of possible combinations.
+
+    '''
+    
+    k = min(k, n-k)
+    numer = reduce(op.mul, range(n, n-k, -1), 1)
+    denom = reduce(op.mul, range(1, k+1), 1)
+    return numer // denom
 
 

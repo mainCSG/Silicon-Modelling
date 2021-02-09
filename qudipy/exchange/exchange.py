@@ -8,7 +8,6 @@ import numpy as np
 import math
 import qudipy as qd
 from scipy.linalg import eigh
-import scipy.misc.comb as comb
 from scipy.optimize import minimize
 from scipy.special import gamma, beta
 
@@ -394,8 +393,39 @@ def find_H_unitary_transformation(gparams, new_basis,
     return ham_new, U
         
         
-def __calc_origin_CME(na, ma, nb, mb, ng, mg, nd, md):
-    
+def __calc_origin_CME(na, ma, nb, mb, ng, mg, nd, md, rydberg=False):
+    '''
+    Assumes SI units
+
+    Parameters
+    ----------
+    na : TYPE
+        DESCRIPTION.
+    ma : TYPE
+        DESCRIPTION.
+    nb : TYPE
+        DESCRIPTION.
+    mb : TYPE
+        DESCRIPTION.
+    ng : TYPE
+        DESCRIPTION.
+    mg : TYPE
+        DESCRIPTION.
+    nd : TYPE
+        DESCRIPTION.
+    md : TYPE
+        DESCRIPTION.
+        
+    Keyword Arguments
+    -----------------
+    rydberg : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    '''
     
     CME = 0
     
@@ -412,27 +442,31 @@ def __calc_origin_CME(na, ma, nb, mb, ng, mg, nd, md):
         return(CME)
     
     for p1 in range(min(na,nd)+1):
-        coef1 = math.factorial(p1)*comb(na,p1)*comb(nd,p1)
+        coef1 = math.factorial(p1)*qd.utils.nchoosek(na,p1)*\
+            qd.utils.nchoosek(nd,p1)
         
         # Continue building a and p
         a1 = a0 - 2*p1;
         pInd1 = pInd0 - 2*p1
         
         for p2 in range(min(ma,md)+1):
-            coef2 = coef1*math.factorial(p2)*comb(ma,p2)*comb(md,p2)
+            coef2 = coef1*math.factorial(p2)*qd.utils.nchoosek(ma,p2)*\
+                qd.utils.nchoosek(md,p2)
             
             # Continue building p
             pInd2 = pInd1 - 2*p2
             
             for p3 in range(min(nb,ng)+1):
-                coef3 = coef2*math.factorial(p3)*comb(nb,p3)*comb(ng,p3)
+                coef3 = coef2*math.factorial(p3)*qd.utils.nchoosek(nb,p3)*\
+                    qd.utils.nchoosek(ng,p3)
                 
                 # Finish building a and continue building and p
                 a = a1 - 2*p3
                 pInd3 = pInd2 - 2*p3
     
                 for p4 in range(min(mb,mg)+1):                 
-                    coef4 = coef3*math.factorial(p4)*comb(mb,p4)*comb(mg,p4)
+                    coef4 = coef3*math.factorial(p4)*qd.utils.nchoosek(mb,p4)*\
+                        qd.utils.nchoosek(mg,p4)
                     
                     # Finish building p
                     p = (pInd3 - 2*p4)/2;
@@ -447,13 +481,111 @@ def __calc_origin_CME(na, ma, nb, mb, ng, mg, nd, md):
     
     # Take care of the sclar coefficients
     globPhase = (-1)^(nb + mb + ng + mg)
-    CME = CME*2/(math.pi*math.sqrt(2))*globPhase
+    CME = CME/(math.pi*math.sqrt(2))*globPhase
     CME = CME/math.sqrt(math.factorial(na)*math.factorial(ma)*\
         math.factorial(nb)*math.factorial(mb)*math.factorial(ng)*\
         math.factorial(mg)*math.factorial(nd)*math.factorial(md))
         
+    # If effective Rydberg units, then multiply by 2
+    if rydberg:
+        CME = 2*CME
+        
     return(CME)
 
+        
+def calc_origin_CME_matrix(nx, ny, omega=1.0, consts=qd.Constants("vacuum"), 
+                           rydberg=False):
+    '''
+    
+
+    Parameters
+    ----------
+    nx : TYPE
+        DESCRIPTION.
+    ny : TYPE
+        DESCRIPTION.
+        
+    Keyword Arguments
+    -----------------
+    omega : TYPE, optional
+        DESCRIPTION. The default is 1.0.
+    consts : TYPE, optional
+        DESCRIPTION. The default is qd.Constants("vacuum").
+    rydberg : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    None.
+
+    '''
+    
+    n_HOs = nx*ny
+    CMEs = np.zeros(n_HOs**2, n_HOs**2)
+    
+    for row_idx in range(n_HOs**2):
+        # Parse the row index to extract alpha and beta and the subsequent
+        # harmonic modes for x and y (n and m respectively)
+        alpha = math.floor(row_idx/n_HOs)
+        n_alpha = math.floor(alpha/ny)
+        m_alpha = alpha % ny
+        
+        beta = row_idx % n_HOs
+        n_beta = math.floor(beta/ny)
+        m_beta = beta % ny
+        
+        for col_idx in range(row_idx,n_HOs**2):
+            # Parse the row index to extract gamma and delta and the subsequent
+            # harmonic modes for x and y (n and m respectively)
+            gamma = math.floor(col_idx/n_HOs)
+            n_gamma = math.floor(gamma/ny)
+            m_gamma = gamma % ny
+            
+            delta = col_idx % n_HOs
+            n_delta = math.floor(delta/ny)
+            m_delta = delta % ny
+            
+            # Check if CME is 0. This will avoid the __calc function returning
+            # 0 and needing to be inserted into the CME array.
+            a = n_alpha + n_beta + n_gamma + n_delta
+            b = m_alpha + m_beta + m_gamma + m_delta
+                
+            if a % 2 != 0 or b % 2 != 0:
+                continue
+            
+            # Get the corresponding CME
+            CMEs[row_idx, col_idx] = __calc_origin_CME(n_alpha, m_alpha, 
+                                                       n_beta, m_beta, 
+                                                       n_gamma, m_gamma, 
+                                                       n_delta, m_delta,
+                                                       rydberg)
+            
+    # We only found the upper triangular part of the matrix so find the
+    # lower triangular part here
+    temp = CMEs - np.diag(np.diag(CMEs))
+    CMEs = CMEs + temp.T # CME is real so no need for .conj()
+        
+    # Now scale CME matrix if appropriate
+    # If effective Rydberg units, then no need to scale CME   
+    if rydberg:
+        k = 1
+    # Otherwise we have SI units and need to scale CMEs by k
+    else:
+        k = consts.e**2/(4*consts.pi*consts.eps)
+        
+    # Scale by k
+    CMEs *= k
+    # Scale by omega if not the default value
+    CMEs = CMEs if omega == 1.0 else CMEs*math.sqrt(omega)
+        
+    return(CMEs)
+    
+    
+        
+        
+        
+        
+        
         
         
         
