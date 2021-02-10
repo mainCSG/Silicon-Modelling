@@ -7,6 +7,7 @@ Functions for calculating the exchange interaction.
 import numpy as np
 import math
 import qudipy as qd
+import itertools
 from scipy.linalg import eigh
 from scipy.optimize import minimize
 from scipy.special import gamma, beta
@@ -490,7 +491,7 @@ def __calc_origin_CME(na, ma, nb, mb, ng, mg, nd, md, rydberg=False):
     if rydberg:
         CME = 2*CME
         
-    return(CME)
+    return CME 
 
         
 def calc_origin_CME_matrix(nx, ny, omega=1.0, consts=qd.Constants("vacuum"), 
@@ -520,29 +521,29 @@ def calc_origin_CME_matrix(nx, ny, omega=1.0, consts=qd.Constants("vacuum"),
 
     '''
     
-    n_HOs = nx*ny
+    n_HOs = nx * ny
     CMEs = np.zeros(n_HOs**2, n_HOs**2)
     
     for row_idx in range(n_HOs**2):
         # Parse the row index to extract alpha and beta and the subsequent
         # harmonic modes for x and y (n and m respectively)
-        alpha = math.floor(row_idx/n_HOs)
-        n_alpha = math.floor(alpha/ny)
+        alpha = math.floor(row_idx / n_HOs)
+        n_alpha = math.floor(alpha / ny)
         m_alpha = alpha % ny
         
         beta = row_idx % n_HOs
-        n_beta = math.floor(beta/ny)
+        n_beta = math.floor(beta / ny)
         m_beta = beta % ny
         
         for col_idx in range(row_idx,n_HOs**2):
             # Parse the row index to extract gamma and delta and the subsequent
             # harmonic modes for x and y (n and m respectively)
-            gamma = math.floor(col_idx/n_HOs)
-            n_gamma = math.floor(gamma/ny)
+            gamma = math.floor(col_idx / n_HOs)
+            n_gamma = math.floor(gamma / ny)
             m_gamma = gamma % ny
             
             delta = col_idx % n_HOs
-            n_delta = math.floor(delta/ny)
+            n_delta = math.floor(delta / ny)
             m_delta = delta % ny
             
             # Check if CME is 0. This will avoid the __calc function returning
@@ -571,20 +572,139 @@ def calc_origin_CME_matrix(nx, ny, omega=1.0, consts=qd.Constants("vacuum"),
         k = 1
     # Otherwise we have SI units and need to scale CMEs by k
     else:
-        k = consts.e**2/(4*consts.pi*consts.eps)
+        k = consts.e**2 / (4 * consts.pi * consts.eps)
         
     # Scale by k
     CMEs *= k
     # Scale by omega if not the default value
     CMEs = CMEs if omega == 1.0 else CMEs*math.sqrt(omega)
         
-    return(CMEs)
+    return CMEs
     
+
+def build_SO_basis_vectors(n_elec, spin_subspace, n_SE_orbs):
+    
+    # Parse input, and convert to numpy array
+    if spin_subspace == 'all':
+        spin_subspace = np.array(range(n_elec+1))
+    else:
+        spin_subspace = np.array(spin_subspace)
+    
+    # Check to see if spin subspace array is valid or not (S_z indices
+    # cannot exceed n_elec or be less than 0.
+    if min(spin_subspace) < 0 or max(spin_subspace) > n_elec:
+        raise ValueError("Spin subspace indices must be positive integers and"+
+                         " less than n_elec+1.")
+    # Otherwise check that all supplied indices are integers
+    else:
+        for idx in spin_subspace:
+            if np.floor(idx) != idx:
+                raise TypeError("Spin subspace indices must be positive integers"+
+                                " and less than n_elec+6.")
+         
+    # Get total number of single electron spin-orbit states
+    n_SE_SO = 2 * n_SE_orbs
+    if n_elec > n_SE_SO:
+        raise ValueError("Not enough states for the desired number of electrons.");
+    elif n_elec < 2:
+        raise ValueError("Need at least two electrons to calculate J.")
+
+    # Here we create a map between the ith spin-orbit state and the
+    # corresponding explicit orbital and spin state.
+    map_SO_basis = np.zeros((n_SE_SO, 2));
+    for idx in range(n_SE_SO):
+        map_SO_basis[idx, :] = [idx // 2, idx % 2]
+    
+    # Order the spin-orbital basis by spin then orbital
+    sort_idx = np.lexsort((map_SO_basis[:,0], map_SO_basis[:,1]))
+    map_SO_basis = map_SO_basis[sort_idx,:]
+
+    # Get all possible state configurations and total number (will be cut
+    # down a bit later on)
+    state_configs = np.array(list(itertools.combinations(range(n_SE_SO), n_elec)))
+    n_2Q_states = qd.utils.nchoosek(n_SE_SO, n_elec)
+    
+    # Now decode the states found using nchoosek into our format where the
+    # first K = n_elec indicies correspond to the orbital state and the last
+    # K = n_elec indicies correspond to the spin state.
+    # As an explicit example for a K = 3 case, consider the multi-electron 
+    # spin-orbit state [4,2,3,0,0,1] which means:
+    # 1st electron is in the 4th orbital state (idx=0) with spin down (idx=3)
+    # 2nd electron is in the 2nd orbital state (idx=1) with spin down (idx=4)
+    # 3rd electron is in the 3rd orbital state (idx=2) with spin up   (idx=5)
+    vec_SO_basis = np.zeros((n_2Q_states, 2 * n_elec));
+    for idx in range(n_2Q_states):
+        curr_config = state_configs[idx, :]
+        curr_vec = np.zeros((2 * n_elec))
+        
+        for jdx in range(n_elec):
+            curr_vec[jdx] = map_SO_basis[curr_config[jdx], 0]
+            curr_vec[jdx + n_elec] = map_SO_basis[curr_config[jdx], 1]
+                                                
+        vec_SO_basis[idx, :] = curr_vec
+        
+    # Rewrite each state to the following convention:
+    # From left to right, first spin-down and then spin-up.  Within a spin
+    # species from left to right, sort by ascending energy level (i.e.
+    # orbital index i). This simplifies construction of the 2nd quantization
+    # hamiltonian
+    for idx in range(n_2Q_states):
+        temp = vec_SO_basis[idx, :]
+        
+        temp = np.reshape(temp, [n_elec, 2], order='F')
+        
+        sort_idx = np.lexsort((temp[:, 0], temp[:, 1]))
+        temp = temp[sort_idx, :]
+        
+        vec_SO_basis[idx, :] = np.reshape(temp, [2 * n_elec], order='F')
+
+    # Now we want to truncate the spin subspace if desired
+    # First calculate the possible spin subspaces
+    possible_Sz = np.linspace(-n_elec/2, n_elec/2, n_elec+1)
+
+    desired_Sz = possible_Sz[spin_subspace]
+    print(desired_Sz)
+    
+    # Loop through each configuration and calcuate Sz.  If it is not
+    # one of the desired Sz subspaces, then remove that basis vector.
+    # Note that we loop backwards through the states here because we
+    # remove rows from the basisVectors matrix which readjusts the
+    # indicies of the non-deleted rows.
+    for idx in reversed(range(n_2Q_states)):
+        
+        curr_spin_config = vec_SO_basis[idx, n_elec:]
+        curr_config_Sz = 0
+        
+        for jdx in range(n_elec):
+            # spin down
+            if curr_spin_config[jdx] == 0:
+                curr_config_Sz -= 0.5
+            # spin up
+            else: 
+                curr_config_Sz += 0.5
+
+        if not curr_config_Sz in desired_Sz:
+            vec_SO_basis = np.delete(vec_SO_basis, (idx), axis=0)
+                
+    return vec_SO_basis, map_SO_basis
+
+
+def build_second_quant_ham():
+    
+    pass
+
+    return 0
     
         
+if __name__ == "__main__":
+    
+    build_SO_basis_vectors(3, [0, 1], 4)
         
         
         
+        
+        
+
         
         
         
