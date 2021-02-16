@@ -13,7 +13,7 @@ from scipy.optimize import minimize
 from scipy.special import gamma, beta
 
 def optimize_HO_omega(gparams, nx, ny=None, ecc=1.0, omega_guess=1E15, 
-                      n_SE_orbs=2, opt_tol=1E-7, consts=qd.Constants("vacuum")):
+                      n_se_orbs=2, opt_tol=1E-7, consts=qd.Constants("vacuum")):
     '''
     Find an optimal choice of omega used when building a basis of harmonic 
     orbitals centered at the origin which are used to approximate the single 
@@ -44,7 +44,7 @@ def optimize_HO_omega(gparams, nx, ny=None, ecc=1.0, omega_guess=1E15,
         obvious orthogonality issues. Therefore, it is heavily suggested that
         omega_guess is supplied with a decent guess. The default is 1E15 which
         should be smaller than most reasonable grid spacings in SI units.
-    n_SE_orbs : int, optional
+    n_se_orbs : int, optional
         Number of single electron orbitals to compare to when checking how well
         the harmonic orbitals approximate the single electron orbitals for a 
         given choice of omega. The default is 2.
@@ -71,7 +71,7 @@ def optimize_HO_omega(gparams, nx, ny=None, ecc=1.0, omega_guess=1E15,
     # First thing to do is find the first few single electron orbitals from
     # the potential landscape.
     __, se_orbitals = qd.qutils.solvers.solve_schrodinger_eq(consts, gparams, 
-                                                             n_sols=n_SE_orbs)
+                                                             n_sols=n_se_orbs)
 
     def find_HO_wf_difference(curr_log_w):
         
@@ -92,7 +92,7 @@ def optimize_HO_omega(gparams, nx, ny=None, ecc=1.0, omega_guess=1E15,
         min_condition = np.abs(1-np.diag(S_matrix.conj().T @ S_matrix))
         # Average the min condition with respect to the number of SE orbitals
         # so the ideal min condition = 1
-        min_condition = np.sum(min_condition)/n_SE_orbs
+        min_condition = np.sum(min_condition)/n_se_orbs
         
         return min_condition
         
@@ -582,7 +582,7 @@ def calc_origin_CME_matrix(nx, ny, omega=1.0, consts=qd.Constants("vacuum"),
     return CMEs
     
 
-def build_SO_basis_vectors(n_elec, spin_subspace, n_SE_orbs):
+def build_SO_basis_vectors(n_elec: int, spin_subspace, n_se_orbs: int):
     
     # Parse input, and convert to numpy array
     if spin_subspace == 'all':
@@ -603,26 +603,26 @@ def build_SO_basis_vectors(n_elec, spin_subspace, n_SE_orbs):
                                 " and less than n_elec+6.")
          
     # Get total number of single electron spin-orbit states
-    n_SE_SO = 2 * n_SE_orbs
-    if n_elec > n_SE_SO:
+    n_se_so = 2 * n_se_orbs
+    if n_elec > n_se_so:
         raise ValueError("Not enough states for the desired number of electrons.");
     elif n_elec < 2:
         raise ValueError("Need at least two electrons to calculate J.")
 
     # Here we create a map between the ith spin-orbit state and the
     # corresponding explicit orbital and spin state.
-    map_SO_basis = np.zeros((n_SE_SO, 2));
-    for idx in range(n_SE_SO):
-        map_SO_basis[idx, :] = [idx // 2, idx % 2]
+    map_so_basis = np.zeros((n_se_so, 2));
+    for idx in range(n_se_so):
+        map_so_basis[idx, :] = [idx // 2, idx % 2]
     
     # Order the spin-orbital basis by spin then orbital
-    sort_idx = np.lexsort((map_SO_basis[:,0], map_SO_basis[:,1]))
-    map_SO_basis = map_SO_basis[sort_idx,:]
+    sort_idx = np.lexsort((map_so_basis[:,0], map_so_basis[:,1]))
+    map_so_basis = map_so_basis[sort_idx,:]
 
     # Get all possible state configurations and total number (will be cut
     # down a bit later on)
-    state_configs = np.array(list(itertools.combinations(range(n_SE_SO), n_elec)))
-    n_2Q_states = qd.utils.nchoosek(n_SE_SO, n_elec)
+    state_configs = np.array(list(itertools.combinations(range(n_se_so), n_elec)))
+    n_2q_states = qd.utils.nchoosek(n_se_so, n_elec)
     
     # Now decode the states found using nchoosek into our format where the
     # first K = n_elec indicies correspond to the orbital state and the last
@@ -632,73 +632,316 @@ def build_SO_basis_vectors(n_elec, spin_subspace, n_SE_orbs):
     # 1st electron is in the 4th orbital state (idx=0) with spin down (idx=3)
     # 2nd electron is in the 2nd orbital state (idx=1) with spin down (idx=4)
     # 3rd electron is in the 3rd orbital state (idx=2) with spin up   (idx=5)
-    vec_SO_basis = np.zeros((n_2Q_states, 2 * n_elec));
-    for idx in range(n_2Q_states):
+    vec_so_basis = np.zeros((n_2q_states, 2 * n_elec), dtype=int);
+    for idx in range(n_2q_states):
         curr_config = state_configs[idx, :]
         curr_vec = np.zeros((2 * n_elec))
         
         for jdx in range(n_elec):
-            curr_vec[jdx] = map_SO_basis[curr_config[jdx], 0]
-            curr_vec[jdx + n_elec] = map_SO_basis[curr_config[jdx], 1]
+            curr_vec[jdx] = map_so_basis[curr_config[jdx], 0]
+            curr_vec[jdx + n_elec] = map_so_basis[curr_config[jdx], 1]
                                                 
-        vec_SO_basis[idx, :] = curr_vec
+        vec_so_basis[idx, :] = curr_vec
         
     # Rewrite each state to the following convention:
     # From left to right, first spin-down and then spin-up.  Within a spin
     # species from left to right, sort by ascending energy level (i.e.
     # orbital index i). This simplifies construction of the 2nd quantization
     # hamiltonian
-    for idx in range(n_2Q_states):
-        temp = vec_SO_basis[idx, :]
+    for idx in range(n_2q_states):
+        temp = vec_so_basis[idx, :]
         
         temp = np.reshape(temp, [n_elec, 2], order='F')
         
         sort_idx = np.lexsort((temp[:, 0], temp[:, 1]))
         temp = temp[sort_idx, :]
         
-        vec_SO_basis[idx, :] = np.reshape(temp, [2 * n_elec], order='F')
+        vec_so_basis[idx, :] = np.reshape(temp, [2 * n_elec], order='F')
 
     # Now we want to truncate the spin subspace if desired
     # First calculate the possible spin subspaces
     possible_Sz = np.linspace(-n_elec/2, n_elec/2, n_elec+1)
 
-    desired_Sz = possible_Sz[spin_subspace]
-    print(desired_Sz)
+    desired_sz = possible_Sz[spin_subspace]
     
     # Loop through each configuration and calcuate Sz.  If it is not
     # one of the desired Sz subspaces, then remove that basis vector.
     # Note that we loop backwards through the states here because we
     # remove rows from the basisVectors matrix which readjusts the
     # indicies of the non-deleted rows.
-    for idx in reversed(range(n_2Q_states)):
+    for idx in reversed(range(n_2q_states)):
         
-        curr_spin_config = vec_SO_basis[idx, n_elec:]
-        curr_config_Sz = 0
+        curr_spin_config = vec_so_basis[idx, n_elec:]
+        curr_config_sz = 0
         
         for jdx in range(n_elec):
             # spin down
             if curr_spin_config[jdx] == 0:
-                curr_config_Sz -= 0.5
+                curr_config_sz -= 0.5
             # spin up
             else: 
-                curr_config_Sz += 0.5
+                curr_config_sz += 0.5
 
-        if not curr_config_Sz in desired_Sz:
-            vec_SO_basis = np.delete(vec_SO_basis, (idx), axis=0)
+        if not curr_config_sz in desired_sz:
+            vec_so_basis = np.delete(vec_so_basis, (idx), axis=0)
                 
-    return vec_SO_basis, map_SO_basis
+    return vec_so_basis, map_so_basis
 
 
-def build_second_quant_ham():
+def build_second_quant_ham(n_elec: int, spin_subspace, n_se_orbs: int, 
+                           ens_se_orbs, se_CMEs):
     
-    pass
-
-    return 0
     
+    ens_se_orbs = np.array(ens_se_orbs)
+    if len(ens_se_orbs) != n_se_orbs:
+        raise ValueError("The number of suppled single electron energies in"+
+                         f" ens_se_orbs: {len(ens_se_orbs)} must be equal to"+
+                         f" n_se_orbs: {n_se_orbs}.\n")
+    
+    vec_so_basis, map_so_basis = build_SO_basis_vectors(n_elec, spin_subspace,
+                                                        n_se_orbs)
+    
+    # Get number of 2nd quantization spin-orbital basis states
+    n_2q_states = vec_so_basis.shape[0]
+
+    # Initialize 2nd quantization hamiltonian
+    T = np.zeros((n_2q_states,n_2q_states))
+    Hc = np.zeros((n_2q_states,n_2q_states))
+                
+    # The second quantization hamiltonian has two terms: T + H_c.  T
+    # describes all the single particle energies in the hamiltonian while
+    # H_c describes all the direct and exchange electron interactions.
+    
+    # Let's first build the single-particle energy operator as it's the
+    # easiest.
+    # All elements lie only on the diagonal and each element is simply the
+    # sum of single electron energies comprising the state
+    # sum_j(\eps_j c_j^\dag c_j)
+    # First get all of the energies
+    
+    for idx in range(n_2q_states):
+        curr_SE_orbs = vec_so_basis[idx, :n_elec]
+        T[idx, idx] = sum(ens_se_orbs[curr_SE_orbs])
+    
+    # Now that the T matrix is assembled, let's turn to the H_c term.
+    for ndx in range(n_2q_states):
+        for mdx in range(ndx+1, n_2q_states):
+            Hc[ndx, mdx] = __hc_helper(n_elec, ndx, mdx, se_CMEs,
+                                       vec_so_basis, map_so_basis)
+            
+    # Get lower triangular part of matrix
+    Hc = Hc + Hc.conj().T
+    for ndx in range(n_2q_states):
+        Hc[ndx, ndx] = __hc_helper(n_elec, ndx, mdx, se_CMEs,
+                                   vec_so_basis, map_so_basis)
+    
+    # Build the full Hamiltonian (and correct numerical errors by forcing
+    # it to be symmetric)
+    H2ndQ = T + Hc
+    H2ndQ = (H2ndQ + H2ndQ.conj().T) / 2
+
+    return H2ndQ
+
+def __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs, vec_so_basis, map_so_basis):
+    
+    n_2q_states = vec_so_basis.shape[0]
+
+    hc_elem = 0
+    
+    # This function simply takes an input ket and applies the anhilation
+    # operator corresponding to the n = [ind] spin-orbit state
+    def __anhilation_helper(state, idx, map_so_basis):
+        '''
+        This function simply takes an input ket and applies the anhilation
+        operator corresponding to the n = [idx] spin-orbit state
+
+        Parameters
+        ----------
+        state : TYPE
+            DESCRIPTION.
+        idx : TYPE
+            DESCRIPTION.
+        map_so_basis : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        '''
+
+        anhil_idx = map_so_basis[idx, :]
+    
+        for jdx in range(n_elec):
+            # Check if the ith anhilation operator destroys any of the
+            # states in the ket
+            
+            if state[jdx] == anhil_idx[0] and state[jdx + n_elec] == anhil_idx[1]:
+                # Edit the orbital and spin state so we know it was destroyed
+                state[jdx], state[jdx + n_elec] = -1, -1
+                
+                # This will only happen once so break out of the loop
+                break
+            
+        return state
+  
+    def __phase_helper(state):
+        '''
+        This function takes an inputted ket that has been modified by annhilation
+        operators and calculates the phase term caused by swapping of the
+        fermionic operators during the annhilation applications.
+
+        Parameters
+        ----------
+        state : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        '''
+
+        # First find all the -1 indicies in the state vector as these
+        # correspond to anhilated electrons
+        anhil_idxs = np.where(state == -1)[0]
         
+        # Truncate the second half of these indices which correspond to spin
+        # and not orbital.
+        anhil_idxs = anhil_idxs[:(len(anhil_idxs) // 2)]
+        
+        # The remaining indices correspond to exactly how many swaps were
+        # in order to apply each anhilation operator, so calculate the phase
+        phase = (-1)**sum(anhil_idxs)
+        
+        return phase
+
+
+    #*****************#
+    # Loop over i > j #
+    #*****************#
+    for jdx in range(n_2q_states - 1):
+        # Initialize the bra state <ij|
+        bra_orig = vec_so_basis[ndx, :]
+        
+        # jth anhilation operator
+        bra_orig = __anhilation_helper(bra_orig, jdx, map_so_basis)
+        
+        # Used for the final two checks in the innermost loop (ldx)
+        j_orb = map_so_basis[jdx, 0]
+        j_spin = map_so_basis[jdx, 1]
+        
+        for idx in range(jdx + 1, n_2q_states):
+            # Refresh bra state for new loop
+            bra = bra_orig
+            
+            # ith anhilation operator
+            bra = __anhilation_helper(bra, idx, map_so_basis)
+
+            # Now that we have the modified bra state, check that both
+            # anhilation operators acted on it. If they both did not, then
+            # they can be commuted so the one that did not acts on the
+            # vacuum state giving c|0> = 0.
+            n_anhil_applied = sum(bra == -1)
+            
+            # Divide by 2 because we modify both the orbital and spin part of 
+            # the bra state
+            if n_anhil_applied // 2 != 2:
+                continue
+            
+            # Now calculate the phase from applying these anhilation operators
+            bra_phase = __phase_helper(bra)
+            
+            # Remove all anhilated electrons from our many-electron bra
+            bra_trim = bra[bra != -1]
+            
+            # Used for the final two checks in the innermost loop (ldx)
+            i_orb = map_so_basis[idx, 0]
+            i_spin = map_so_basis[idx, 1]
+
+            # Loop over k < l
+            for kdx in range(n_2q_states - 1):
+                # Initialize the ket state |kl>
+                ket_orig = vec_so_basis[mdx, :]
+                
+                # kth anhilation operator
+                ket = __anhilation_helper(ket_orig, kdx, map_so_basis)
+                
+                # Used for the final two checks in the innermost loop (ldx)
+                k_orb = map_so_basis[kdx, 0]
+                k_spin = map_so_basis[kdx, 1]
+                
+                for ldx in range(kdx + 1, n_2q_states):
+                    # Refresh ket state for new loop
+                    ket = ket_orig
+                    
+                    # Apply anhilation operators to KET state
+                    # lth anhilation operator
+                    ket = __anhilation_helper(ket, ldx, map_so_basis)
+                    
+                    # Now that we have the modified ket state, check that both
+                    # anhilation operators acted on it.  If they both did not, then
+                    # they can be commuted so the one that did not acts on the
+                    # vacuum state giving c|0> = 0.
+                    n_anhil_applied = sum(ket == -1)
+                    
+                    # Divide by 2 because we modify both the orbital and spin 
+                    # part of the ket state
+                    if n_anhil_applied // 2 != 2:
+                        continue
+                    
+                    # Now calculate the phase from applying these anhilation
+                    # operators
+                    ket_phase = __phase_helper(ket)
+                    
+                    # Remove all anhilated electrons from our many-electron ket
+                    ket_trim = ket[ket != -1]
+                    
+                    # SANITY CHECK: there should be nElec - 2 electrons remaining.
+                    if (len(bra_trim) // 2 != (n_elec - 2) or
+                            len(bra_trim) != len(ket_trim)):
+                        raise ValueError('Incorrect number of electrons left '+
+                                         'after application of bra/ket'+
+                                         ' annhilation operators.')
+                    
+                    # Check that all the remaining electrons are the same for
+                    # the bra and ket. Otherwise, the inner product is 0.
+                    # Because of our ordering convention, after we removed the
+                    # anhilated states, the arrays should match exactly.
+                    # No need to worry about permutated vectors.
+                    if not np.array_equal(bra_trim, ket_trim):
+                        continue
+                    
+                    # Used for the final two checks in the innermost loop (ldx)
+                    l_orb = map_so_basis[ldx, :]
+                    l_spin = map_so_basis[ldx, :]
+                    
+                    # Check that the spins for state pairs (i,l) and (j,k) 
+                    # match
+                    if i_spin == l_spin and j_spin == k_spin:
+                        row_idx = j_orb * n_se_orbs + i_orb
+                        col_idx = k_orb * n_se_orbs + l_orb
+                        
+                        curr_CME = se_CMEs[row_idx, col_idx]
+                        
+                        hc_elem += curr_CME * bra_phase * ket_phase
+
+                    # Check that the spins for state pairs (i,k) and (j,l) 
+                    # match
+                    if i_spin == k_spin and j_spin == l_spin:
+                        row_idx = j_orb * n_se_orbs + i_orb
+                        col_idx = l_orb * n_se_orbs + k_orb
+                        
+                        curr_CME = se_CMEs[row_idx, col_idx]
+                        
+                        hc_elem -= curr_CME * bra_phase * ket_phase
+                
+    return hc_elem
+    
+def calc_many_
 if __name__ == "__main__":
     
-    build_SO_basis_vectors(3, [0, 1], 4)
+    build_second_quant_ham(3, [0, 1], 4, [15.5, 16.5, 17.5, 18.5])
         
         
         
