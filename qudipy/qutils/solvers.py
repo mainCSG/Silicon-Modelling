@@ -5,8 +5,12 @@ Quantum utility solver functions
 """
 
 import numpy as np
+import time
+import qudipy as qd
+import qudipy.exchange as ex
 from scipy import sparse
-from scipy.sparse.linalg import eigs
+from scipy.sparse.linalg import eigs 
+from scipy.linalg import eigh
 from qudipy.qutils.qmath import inner_prod
 
 def build_1DSE_hamiltonian(consts, gparams):
@@ -178,7 +182,211 @@ def solve_schrodinger_eq(consts, gparams, n_sols=1):
     
     return eig_ens, eig_vecs
 
+def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4, 
+                       consts=qd.Constants("vacuum"), optimize_omega=True,
+                       omega=None, opt_omega_n_se=2, ho_CMEs=None, 
+                       path_CME=None, spin_subspace='all'):
+    '''
+    This function calculates the many electron energy spectra given an
+    arbitrary potential landscape. The energy spectra is found using a modified
+    LCHO-CI approach where we approximate the single electron orbitals of the
+    potential using a basis of harmonic orbitals centered at the coordinate
+    system origin. This calculation will load a pre-calculated set of Coulomb
+    matrix elements (CMEs) if it is available (if not, it will calculate them
+    but this computation time is costly).
 
+    Parameters
+    ----------
+    gparams : TYPE
+        DESCRIPTION.
+    n_elec : TYPE
+        DESCRIPTION.
+    n_xy_ho : TYPE
+        DESCRIPTION.
+    n_se : TYPE
+        DESCRIPTION.
+    n_sols : TYPE, optional
+        DESCRIPTION. The default is 4.
+    consts : TYPE, optiona
+        DESCRIPTION. The default is "vacuum".
+    optimize_omega : TYPE, optional
+        DESCRIPTION. The default is True.
+    omega : TYPE, optional
+        DESCRIPTION. The default is None.
+    opt_omega_n_se : TYPE, optional
+        DESCRIPTION, The default is 2.
+    ho_CMEs : TYPE, optional
+        DESCRIPTION. The default is None.
+    path_CME : TYPE, optional
+        DESCRIPTION. The default is None.
+    spin_subspace : TYPE, optional
+        DESCRIPTION. The default is 'all'.
+
+    Returns
+    -------
+    many_elec_ens : TYPE
+        DESCRIPTION.
+    many_elec_vecs : TYPE
+        DESCRIPTION.
+
+    '''
+    
+    total_calc_time = time.time()
+    
+    print('Begining many body energy calculation...\n')
+    
+    #********************#
+    # omega optimization #
+    #********************#
+    opt_omega_time = time.time()
+    if optimize_omega:
+        print('Optimizing choice of omega in approximating the single ' +
+              'electron orbitals...\n')
+        omega_opt, __ = ex.optimize_HO_omega(gparams, 
+                                             nx=n_xy_ho[0], ny=n_xy_ho[1],
+                                             omega_guess=omega,
+                                             n_se_orbs=opt_omega_n_se, 
+                                             consts=consts)
+        
+        print(f'Found an optimal omega of {omega_opt:.2E}.\n')
+        opt_omega_time = time.time() - opt_omega_time
+        print(f'Elapsed time is {opt_omega_time} seconds.')
+        print('Done!\n')
+    else:
+        omega_opt = omega
+        opt_omega_time = time.time() - opt_omega_time
+        
+    #**********************#
+    # Building 2D HO basis #
+    #**********************#
+    print('Finding 2D harmonic orbitals at origin...\n');
+    # Create a new basis of HOs centered at the origin of our dots
+    origin_hos = ex.build_HO_basis(gparams, omega=omega_opt, 
+                                   nx=n_xy_ho[0], ny=n_xy_ho[1], ecc=1.0,
+                                   consts=consts)
+    print('Done!\n');
+    
+    #**********#
+    # A matrix #
+    #**********#
+    print('Finding A matrix...\n')
+    
+    a_mat_time = time.time()
+    __, a_mat, lcho_ens = ex.find_H_unitary_transformation(gparams, origin_hos, 
+                                                           consts=consts, 
+                                                           unitary=True,
+                                                           ortho_basis=True)
+    
+    # Truncate A in accordance with how many itinerant orbitals we want
+    a_mat = a_mat[:n_se, :]
+    lcho_ens = lcho_ens[:n_se]
+        
+    a_mat_time = time.time() - a_mat_time
+    print(f'Elapsed time is {a_mat_time} seconds.')
+    print('Done!\n')
+    
+    print(lcho_ens)
+    return 0, 0
+
+    #************#
+    # CME matrix #
+    #************#
+    if ho_CMEs:
+        print('Harmonic orbital CME matrix supplied as an argument!\n');
+    else:
+        print('Harmonic orbital CME matrix NOT supplied as an argument!\n'+
+              'Will construct the CME matrix now...\n')
+        
+        cme_time = time.time()
+        ho_CMEs = ex.calc_origin_CME_matrix(n_xy_ho[0], n_xy_ho[1], omega=1.0)
+        cme_time = time.time() - cme_time
+        print(f'Elapsed time is {cme_time} seconds.')
+        print('Done!\n')
+    
+    #***************#
+    # Transform CME #
+    #***************#
+    transform_time = time.time()
+    print('Transforming the CME library to single electron basis...\n')
+    
+    '''
+    % Get a subset of the CMEs if the given nOrigins parameter in the
+    % simparams file is less than what we've solved for in the library
+    % already. Useful for checking convergence wrt number of orbitals. 
+    CMEs_lib_sub = getSubsetOfCMEs(sparams, CMEs_lib);
+    '''
+    
+    # Scale the CMEs to match the origin HOs used to construct the
+    # transformation matrix
+    A = sqrt(consts.hbar / (consts.me * omega_opt))
+
+    # Now do a basis transformation using a_mat
+    full_trans_mat = np.kron(a_mat, a_mat)
+    
+    se_CMEs = full_trans_mat @ (ho_CMEs / A) @ full_trans_mat.conj().T
+    
+    transform_time = time.time() - transform_time
+    print(f'Elapsed time is {transform_time} seconds.')
+    print('Done!\n')
+    
+    #************************************#
+    # Build 2nd quantization hamiltonian #
+    #************************************#
+    
+    build2nd_time = time.time()
+    print('Building 2nd quantization Hamiltonian and diagonalizing...\n')
+    
+    # Build the 2nd quantization Hamiltonian and then diagonalize it to
+    # obtain the egienvectors and eigenenergies of the many electron system.
+    ham_2q = ex.build_second_quant_ham(n_elec, spin_subspace, n_se, lcho_ens,
+                                       se_CMEs)
+    
+    build2nd_time = time.time() - build2nd_time
+    print(f'Elapsed time is {build2nd_time} seconds.')
+    print('Done!\n')
+    
+    # Now diagonalize the many electron hamiltonian
+    many_elec_ens, many_elec_vecs = eigh(ham_2q, subset_by_index=[0,n_sols-1])
+    
+    total_calc_time = time.time() - total_calc_time
+    
+    # Display runtime information/etc.
+    print(f'Total simulation time: {total_calc_time:.2f} sec, '+
+          f'{total_calc_time/60:.2f} min.')
+    
+    print(f'Time optimizing omega: {opt_omega_time:.2f} sec, '+
+          f'{opt_omega_time/total_calc_time*100:.2f}% of total.')
+    
+    print(f'Time finding A matrix: {a_mat_time:.2f} sec, '+
+          f'{a_mat_time/total_calc_time*100:.2f}% of total.')
+    
+    print(f'Time transforming CMEs: {transform_time:.2f} sec, '+
+          f'{transform_time/total_calc_time*100:.2f}% of total.')
+    
+    print(f'Time building 2nd quantization H: {build2nd_time:.2f} sec, '+
+          f'{build2nd_time/total_calc_time*100:.2f}% of total.')
+    
+    return many_elec_ens, many_elec_vecs
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
         
 
     

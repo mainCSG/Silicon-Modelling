@@ -1,5 +1,5 @@
 """
-Functions for calculating the exchange interaction.
+Functions for calculating the many-electron schrodinger equation.
 
 @author: simba
 """
@@ -111,7 +111,7 @@ def optimize_HO_omega(gparams, nx, ny=None, ecc=1.0, omega_guess=1E15,
         opt_HOs = build_HO_basis(gparams, opt_omega, nx, ny, ecc=ecc,
                                   consts=consts)
         
-        return opt_omega, opt_HOs
+        return opt_omega[0], opt_HOs
     
     # If optimization failed, return None
     else:
@@ -312,6 +312,8 @@ def find_H_unitary_transformation(gparams, new_basis,
         The unitary transformation that yields U*H*U^-1 = H' where H is the
         original hamiltonian and H' is the hamiltonian in the new basis. This
         is only returned when unitary=True.
+    eig_ens : 1d array
+        The eigenergies of the hamiltonian written in the new basis.
 
     '''
     
@@ -388,10 +390,12 @@ def find_H_unitary_transformation(gparams, new_basis,
                                                            new_basis)
             eig_ens, U = eigh(ham_new, S_matrix)
 
-    # Sort unitary by eigenvalue
+    # Sort eigenenergies and unitary from smallest to largest (although it
+    # already should be sorted by eigh output)
+    eig_ens = eig_ens[eig_ens.argsort()]
     U = U[:,eig_ens.argsort()]
-
-    return ham_new, U
+    
+    return ham_new, U, eig_ens
         
         
 def __calc_origin_CME(na, ma, nb, mb, ng, mg, nd, md, rydberg=False):
@@ -938,7 +942,6 @@ def __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs, vec_so_basis, map_so_basis
                 
     return hc_elem
     
-def calc_many_
 if __name__ == "__main__":
     
     build_second_quant_ham(3, [0, 1], 4, [15.5, 16.5, 17.5, 18.5])
