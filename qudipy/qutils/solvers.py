@@ -185,7 +185,7 @@ def solve_schrodinger_eq(consts, gparams, n_sols=1):
 def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4, 
                        consts=qd.Constants("vacuum"), optimize_omega=True,
                        omega=None, opt_omega_n_se=2, ho_CMEs=None, 
-                       path_CME=None, spin_subspace='all'):
+                       CME_path=None, spin_subspace='all'):
     '''
     This function calculates the many electron energy spectra given an
     arbitrary potential landscape. The energy spectra is found using a modified
@@ -217,7 +217,7 @@ def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4,
         DESCRIPTION, The default is 2.
     ho_CMEs : TYPE, optional
         DESCRIPTION. The default is None.
-    path_CME : TYPE, optional
+    CME_path : TYPE, optional
         DESCRIPTION. The default is None.
     spin_subspace : TYPE, optional
         DESCRIPTION. The default is 'all'.
@@ -250,8 +250,8 @@ def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4,
         
         print(f'Found an optimal omega of {omega_opt:.2E}.\n')
         opt_omega_time = time.time() - opt_omega_time
-        print(f'Elapsed time is {opt_omega_time} seconds.')
-        print('Done!\n')
+        print('Done!')
+        print(f'Elapsed time is {opt_omega_time} seconds.\n')
     else:
         omega_opt = omega
         opt_omega_time = time.time() - opt_omega_time
@@ -264,7 +264,7 @@ def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4,
     origin_hos = ex.build_HO_basis(gparams, omega=omega_opt, 
                                    nx=n_xy_ho[0], ny=n_xy_ho[1], ecc=1.0,
                                    consts=consts)
-    print('Done!\n');
+    print('Done!\n')
     
     #**********#
     # A matrix #
@@ -282,11 +282,8 @@ def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4,
     lcho_ens = lcho_ens[:n_se]
         
     a_mat_time = time.time() - a_mat_time
-    print(f'Elapsed time is {a_mat_time} seconds.')
-    print('Done!\n')
-    
-    print(lcho_ens)
-    return 0, 0
+    print('Done!')
+    print(f'Elapsed time is {a_mat_time} seconds.\n')
 
     #************#
     # CME matrix #
@@ -300,8 +297,8 @@ def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4,
         cme_time = time.time()
         ho_CMEs = ex.calc_origin_CME_matrix(n_xy_ho[0], n_xy_ho[1], omega=1.0)
         cme_time = time.time() - cme_time
-        print(f'Elapsed time is {cme_time} seconds.')
-        print('Done!\n')
+        print('Done!')
+        print(f'Elapsed time is {cme_time} seconds.\n')
     
     #***************#
     # Transform CME #
@@ -318,7 +315,7 @@ def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4,
     
     # Scale the CMEs to match the origin HOs used to construct the
     # transformation matrix
-    A = sqrt(consts.hbar / (consts.me * omega_opt))
+    A = np.sqrt(consts.hbar / (consts.me * omega_opt))
 
     # Now do a basis transformation using a_mat
     full_trans_mat = np.kron(a_mat, a_mat)
@@ -326,15 +323,15 @@ def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4,
     se_CMEs = full_trans_mat @ (ho_CMEs / A) @ full_trans_mat.conj().T
     
     transform_time = time.time() - transform_time
-    print(f'Elapsed time is {transform_time} seconds.')
-    print('Done!\n')
+    print('Done!')
+    print(f'Elapsed time is {transform_time} seconds.\n')
     
     #************************************#
     # Build 2nd quantization hamiltonian #
     #************************************#
     
     build2nd_time = time.time()
-    print('Building 2nd quantization Hamiltonian and diagonalizing...\n')
+    print('Building 2nd quantization Hamiltonian and diagonalizing...')
     
     # Build the 2nd quantization Hamiltonian and then diagonalize it to
     # obtain the egienvectors and eigenenergies of the many electron system.
@@ -342,8 +339,8 @@ def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4,
                                        se_CMEs)
     
     build2nd_time = time.time() - build2nd_time
-    print(f'Elapsed time is {build2nd_time} seconds.')
     print('Done!\n')
+    print(f'Elapsed time is {build2nd_time} seconds.\n')
     
     # Now diagonalize the many electron hamiltonian
     many_elec_ens, many_elec_vecs = eigh(ham_2q, subset_by_index=[0,n_sols-1])
@@ -351,7 +348,7 @@ def solve_many_elec_SE(gparams, n_elec, n_xy_ho, n_se, n_sols=4,
     total_calc_time = time.time() - total_calc_time
     
     # Display runtime information/etc.
-    print(f'Total simulation time: {total_calc_time:.2f} sec, '+
+    print(f'Total calculation time: {total_calc_time:.2f} sec, '+
           f'{total_calc_time/60:.2f} min.')
     
     print(f'Time optimizing omega: {opt_omega_time:.2f} sec, '+

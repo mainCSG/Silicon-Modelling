@@ -11,6 +11,8 @@ import itertools
 from scipy.linalg import eigh
 from scipy.optimize import minimize
 from scipy.special import gamma, beta
+from tqdm import tqdm
+import time
 
 def optimize_HO_omega(gparams, nx, ny=None, ecc=1.0, omega_guess=1E15, 
                       n_se_orbs=2, opt_tol=1E-7, consts=qd.Constants("vacuum")):
@@ -474,18 +476,18 @@ def __calc_origin_CME(na, ma, nb, mb, ng, mg, nd, md, rydberg=False):
                         qd.utils.nchoosek(mg,p4)
                     
                     # Finish building p
-                    p = (pInd3 - 2*p4)/2;
+                    p = (pInd3 - 2*p4)/2
                     
                     # Skip this sum term if 2p is odd
                     if p % 2 != 0:
                         continue
                     
                     # Calculate the CME
-                    CME = CME + (-1)^p*coef4*gamma(p + 1/2)*\
-                        beta(p - ((a - 1)/2),(a + 1)/2);
+                    CME = CME + (-1)**p * coef4 * gamma(p + 1/2) *\
+                        beta(p - ((a - 1)/2), (a + 1)/2)
     
     # Take care of the sclar coefficients
-    globPhase = (-1)^(nb + mb + ng + mg)
+    globPhase = (-1)**(nb + mb + ng + mg)
     CME = CME/(math.pi*math.sqrt(2))*globPhase
     CME = CME/math.sqrt(math.factorial(na)*math.factorial(ma)*\
         math.factorial(nb)*math.factorial(mb)*math.factorial(ng)*\
@@ -526,9 +528,11 @@ def calc_origin_CME_matrix(nx, ny, omega=1.0, consts=qd.Constants("vacuum"),
     '''
     
     n_HOs = nx * ny
-    CMEs = np.zeros(n_HOs**2, n_HOs**2)
+    CMEs = np.zeros([n_HOs**2, n_HOs**2])
     
-    for row_idx in range(n_HOs**2):
+    time.sleep(0.5) # Needed for tqdm to work properly if a print statement
+                    # is executed right before running this function.
+    for row_idx in tqdm(range(n_HOs**2)):
         # Parse the row index to extract alpha and beta and the subsequent
         # harmonic modes for x and y (n and m respectively)
         alpha = math.floor(row_idx / n_HOs)
@@ -709,8 +713,8 @@ def build_second_quant_ham(n_elec: int, spin_subspace, n_se_orbs: int,
     n_2q_states = vec_so_basis.shape[0]
 
     # Initialize 2nd quantization hamiltonian
-    T = np.zeros((n_2q_states,n_2q_states))
-    Hc = np.zeros((n_2q_states,n_2q_states))
+    T = np.zeros((n_2q_states,n_2q_states), dtype=complex)
+    Hc = np.zeros((n_2q_states,n_2q_states), dtype=complex)
                 
     # The second quantization hamiltonian has two terms: T + H_c.  T
     # describes all the single particle energies in the hamiltonian while
@@ -730,13 +734,13 @@ def build_second_quant_ham(n_elec: int, spin_subspace, n_se_orbs: int,
     # Now that the T matrix is assembled, let's turn to the H_c term.
     for ndx in range(n_2q_states):
         for mdx in range(ndx+1, n_2q_states):
-            Hc[ndx, mdx] = __hc_helper(n_elec, ndx, mdx, se_CMEs,
+            Hc[ndx, mdx] = __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs,
                                        vec_so_basis, map_so_basis)
             
     # Get lower triangular part of matrix
     Hc = Hc + Hc.conj().T
     for ndx in range(n_2q_states):
-        Hc[ndx, ndx] = __hc_helper(n_elec, ndx, mdx, se_CMEs,
+        Hc[ndx, ndx] = __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs,
                                    vec_so_basis, map_so_basis)
     
     # Build the full Hamiltonian (and correct numerical errors by forcing
@@ -748,7 +752,8 @@ def build_second_quant_ham(n_elec: int, spin_subspace, n_se_orbs: int,
 
 def __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs, vec_so_basis, map_so_basis):
     
-    n_2q_states = vec_so_basis.shape[0]
+    # Get number of single electron spin orbital states
+    n_se_so = map_so_basis.shape[0]
 
     hc_elem = 0
     
@@ -824,7 +829,7 @@ def __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs, vec_so_basis, map_so_basis
     #*****************#
     # Loop over i > j #
     #*****************#
-    for jdx in range(n_2q_states - 1):
+    for jdx in range(n_se_so - 1):
         # Initialize the bra state <ij|
         bra_orig = vec_so_basis[ndx, :]
         
@@ -835,7 +840,7 @@ def __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs, vec_so_basis, map_so_basis
         j_orb = map_so_basis[jdx, 0]
         j_spin = map_so_basis[jdx, 1]
         
-        for idx in range(jdx + 1, n_2q_states):
+        for idx in range(jdx + 1, n_se_so):
             # Refresh bra state for new loop
             bra = bra_orig
             
@@ -864,7 +869,7 @@ def __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs, vec_so_basis, map_so_basis
             i_spin = map_so_basis[idx, 1]
 
             # Loop over k < l
-            for kdx in range(n_2q_states - 1):
+            for kdx in range(n_se_so - 1):
                 # Initialize the ket state |kl>
                 ket_orig = vec_so_basis[mdx, :]
                 
@@ -875,7 +880,7 @@ def __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs, vec_so_basis, map_so_basis
                 k_orb = map_so_basis[kdx, 0]
                 k_spin = map_so_basis[kdx, 1]
                 
-                for ldx in range(kdx + 1, n_2q_states):
+                for ldx in range(kdx + 1, n_se_so):
                     # Refresh ket state for new loop
                     ket = ket_orig
                     
@@ -917,15 +922,15 @@ def __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs, vec_so_basis, map_so_basis
                         continue
                     
                     # Used for the final two checks in the innermost loop (ldx)
-                    l_orb = map_so_basis[ldx, :]
-                    l_spin = map_so_basis[ldx, :]
-                    
+                    l_orb = map_so_basis[ldx, 0]
+                    l_spin = map_so_basis[ldx, 1]
+                                        
                     # Check that the spins for state pairs (i,l) and (j,k) 
                     # match
                     if i_spin == l_spin and j_spin == k_spin:
-                        row_idx = j_orb * n_se_orbs + i_orb
-                        col_idx = k_orb * n_se_orbs + l_orb
-                        
+                        row_idx = int(j_orb * n_se_orbs + i_orb)
+                        col_idx = int(k_orb * n_se_orbs + l_orb)
+                                                
                         curr_CME = se_CMEs[row_idx, col_idx]
                         
                         hc_elem += curr_CME * bra_phase * ket_phase
@@ -933,8 +938,8 @@ def __hc_helper(n_elec, ndx, mdx, n_se_orbs, se_CMEs, vec_so_basis, map_so_basis
                     # Check that the spins for state pairs (i,k) and (j,l) 
                     # match
                     if i_spin == k_spin and j_spin == l_spin:
-                        row_idx = j_orb * n_se_orbs + i_orb
-                        col_idx = l_orb * n_se_orbs + k_orb
+                        row_idx = int(j_orb * n_se_orbs + i_orb)
+                        col_idx = int(l_orb * n_se_orbs + k_orb)
                         
                         curr_CME = se_CMEs[row_idx, col_idx]
                         
