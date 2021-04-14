@@ -1,5 +1,5 @@
 """
-Functions for loading data from files.
+Functions for loading data, either from files or analytically defining them.
 
 @author: simba
 """
@@ -11,6 +11,7 @@ from scipy.interpolate import interp2d
 from itertools import product
 
 import qudipy as qd
+from qudipy.potential import GridParameters
 from qudipy.potential.potentialinterpolator import PotentialInterpolator
         
 def build_interpolator(load_data_dict, constants=qd.Constants(), 
@@ -247,3 +248,55 @@ def load_potentials(ctrl_vals, ctrl_names, f_type='pot', f_dir=None,
     
     
     return all_files
+
+def analytical_potential(ctrl_vals, ctrl_names, function, x_range, y_range):
+    '''
+    Allows one to create an analytical potential in the xy-plane from a function
+    Parameters
+    ----------
+    ctrl_vals : list of list of floats
+        List of relevant control values used to define the potential. The first list
+        index corresponds to the ith control variable and the second list
+        index correspond to the ith value for that control variable.
+    ctrl_names : list of strings
+        List of each ctrl variable name. Must be the same length as ctrl_vals 
+        first dimension.
+    function : callable
+        Function which defines the 2D potential you wish to map out. function
+        must take the list ctrl_vals as the first argument and a GridParameters 
+        object as the second argument. Refer to tutorial for an explicit example
+    x_range : 1D List or Numpy array
+        grid points along x where you want to potential to be calculated
+    y_range : 1D List or Numpy array
+        grid points along y where you want to potential to be calculated
+
+    Returns
+    -------
+    analytical_potential : dictionary
+        Dictionary containing the x and y coordinates, the potential at each
+        coordinate point, and the control variable vector and control variable
+        name.
+    '''
+
+    # From the x and y ranges provided, create the GridParameters
+    gparams = GridParameters(x_range, y_range)
+
+    # Go over all products of control values and calculate potential
+    cval_array = []
+    pots_array = []
+    for curr_cvals in product(*ctrl_vals):
+        pots_array.append(function(curr_cvals, gparams))
+        cval_array.append(list(curr_cvals))
+
+    # Create named tuple for coordinates
+    Coordinates = namedtuple('Coordinates',['x','y'])
+
+    # Load everything into a dictionary that is returned
+    analytic_potential = {}
+    analytic_potential['coords'] = Coordinates(x_range, y_range)
+    analytic_potential['ctrl_vals'] = cval_array
+    analytic_potential['ctrl_names'] = ctrl_names
+    analytic_potential['potentials'] = pots_array
+
+    return analytic_potential
+    
