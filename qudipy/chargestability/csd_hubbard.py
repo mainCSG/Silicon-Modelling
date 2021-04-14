@@ -3,14 +3,18 @@ File used to generate and plot charge stability diagrams from provided potential
 For more information about the method, see the references https://doi.org/10.1103/PhysRevB.83.235314 and https://doi.org/10.1103/PhysRevB.83.161301
 '''
 
+# From builtins
 import copy
+import itertools
+# From external modules
 import numpy as np
 import pandas as pd
-import itertools
 from scipy import linalg as la
+# module
 from ..utils.constants import Constants
+from ..qutils.hamiltonian import Hamiltonian
 
-class HubbardCSD:
+class HubbardCSD(Hamiltonian):
     '''
     Initialize the charge stability diagram class which generates charge stability diagrams based on given capacitance parameters.
     Based on section III in https://doi.org/10.1103/PhysRevB.83.235314.
@@ -79,7 +83,8 @@ class HubbardCSD:
             self.fixed_hamiltonian += self.__generate_h_u()
 
     def generate_csd(self, initial_v, g1, g2, v_g1_max, v_g2_max, num=100):
-        '''Generates the charge stability diagram between v_g1(2)_min and v_g1(2)_max with num by num data points in 2D
+        '''
+        Generates the charge stability diagram between v_g1(2)_min and v_g1(2)_max with num by num data points in 2D
 
         Parameters
         ----------

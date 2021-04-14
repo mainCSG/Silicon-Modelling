@@ -5,13 +5,28 @@ Reference: B. Buonacorsi, B. Shaw, J. Baugh. (2020) doi.org/10.1103/PhysRevB.102
 @author: aaranyaalex
 """
 import numpy as np
-import qudipy.potential as pot
-from qudipy.qutils.solvers import build_1DSE_hamiltonian, build_2DSE_hamiltonian
+from .. import potential as pot
+from ..qutils.solvers import build_1DSE_hamiltonian, build_2DSE_hamiltonian
 from scipy.sparse.linalg import eigs
 from scipy.linalg import block_diag
 from types import SimpleNamespace
 
+class Hamiltonian:
+    '''
+    General class which represents all Hamiltonians and methods that will be common to all Hamiltonians.
+    Expected to be a parent class with child classes representing more specific types of Hamiltonians.
+    '''
+    def __init__(self, matrix):
+        """
 
+        Parameters
+        ----------
+        A : matrix: Square hermitian matrix that represents the Hamiltonian
+
+        """
+        self.matrix = matrix
+
+# This function is not for a general Hamiltonian
 class HamFunctions:
 
     def eigens(self, A, params, nsols=1):
