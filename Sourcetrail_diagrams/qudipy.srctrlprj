@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<config>
+    <source_groups>
+        <source_group_ed5357d3-aa28-4d60-9d1f-e1e35a16e873>
+            <exclude_filters>
+                <exclude_filter>../qudipy/__init__.py</exclude_filter>
+                <exclude_filter>../qudipy/chargestability/__init__.py</exclude_filter>
+                <exclude_filter>../qudipy/circuit/__init__.py</exclude_filter>
+                <exclude_filter>../qudipy/exchange/__init__.py</exclude_filter>
+                <exclude_filter>&#x0A;../qudipy/potential/__init__.py</exclude_filter>
+                <exclude_filter>../qudipy/qutils/__init__.py</exclude_filter>
+                <exclude_filter>../qudipy/utils/__init__.py</exclude_filter>
+                <exclude_filter>../qudipy/starkshift/__init__.py</exclude_filter>
+                <exclude_filter>../qudipy/spinsimulator/__init__.py</exclude_filter>
+            </exclude_filters>
+            <name>Python Source Group</name>
+            <source_extensions>
+                <source_extension>.py</source_extension>
+            </source_extensions>
+            <source_paths>
+                <source_path>../qudipy</source_path>
+            </source_paths>
+            <status>enabled</status>
+            <type>Python Source Group</type>
+        </source_group_ed5357d3-aa28-4d60-9d1f-e1e35a16e873>
+    </source_groups>
+    <version>8</version>
+</config>

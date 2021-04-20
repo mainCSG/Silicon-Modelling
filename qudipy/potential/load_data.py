@@ -129,11 +129,11 @@ def load_potentials(ctrl_vals, ctrl_names, f_type='pot', f_dir=None,
     -----------------
     f_type : string, optional
         Type of file to load (either potential or electric field). Acceptable 
-        arguments include ['pot','potential','Uxy','electric','field','Ez'].
-        Default is potential. The default is 'pot'
+        arguments include ['pot','potential','Uxy','electric','field','Ez']. 
+        The default is 'pot' (potential).
     f_dir : string, optional
-        Path to find files specified in f_list. The default is is the current
-        working directory.
+        Path to find files specified by ctrl_vals and ctrl_names. The default 
+        is the current working directory.
     f_pot_units : string, optional
         Units of the potential in the files to load. Units from file will be
         converted to J.

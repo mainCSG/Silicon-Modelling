@@ -474,8 +474,7 @@ class PotentialInterpolator:
         # If swept_ctrl is an integer, then no need to find the corresponding
         # index. If swept_ctrl is a string, we need to check that it is one of
         # the control names and then find the corresponding index.
-        if not isinstance(swept_ctrl,int):
-            
+        if not isinstance(swept_ctrl, int):
             try:
                 # Get corresponding control index
                 ctrl_idx = self.ctrl_names.index(swept_ctrl)
