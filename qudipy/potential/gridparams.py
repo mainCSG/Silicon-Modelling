@@ -34,7 +34,7 @@ class GridParameters:
         None.
 
         '''
-        self.potential = np.array(potential);
+        self.potential = np.array(potential)
         
         self.x = np.array(x)
         self.dx = x[1] - x[0]
