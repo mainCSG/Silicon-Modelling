@@ -8,6 +8,7 @@ import numpy as np
 from .. import potential as pot
 from ..qutils.solvers import build_1DSE_hamiltonian, build_2DSE_hamiltonian
 from scipy.sparse.linalg import eigs
+from scipy.linalg import eigh
 from scipy.linalg import block_diag
 from types import SimpleNamespace
 
@@ -16,15 +17,71 @@ class Hamiltonian:
     General class which represents all Hamiltonians and methods that will be common to all Hamiltonians.
     Expected to be a parent class with child classes representing more specific types of Hamiltonians.
     '''
-    def __init__(self, matrix):
+    def __init__(self, fixed_hamiltonian):
         """
 
         Parameters
         ----------
-        A : matrix: Square hermitian matrix that represents the Hamiltonian
+        fixed_hamiltonian: Square Hermitian matrix that represents the portion of the Hamiltonian that does not change with time
 
         """
-        self.matrix = matrix
+        self.fixed_hamiltonian = fixed_hamiltonian
+        self.size = fixed_hamiltonian.shape
+
+    def eigens(self, nsols=1, variable_hamiltonian=None):
+        """
+        Finds the eigenvalues eigenvectors of the total Hamiltonian of the system, where the variable portion of the Hamiltonian is passed
+        as a variable and the fixed portion of the Hamiltonian is 
+
+        Parameters
+        ----------
+        None
+
+        Keyword Arguments
+        -----------------
+        nsols: integer number of eigenvalue/eigenvectors to return (default 1)
+        variable_hamiltonian: matrix which represents the variable part of the Hamiltonian to be added to the constant part of the Hamiltonian (default None)
+
+        Returns
+        -------
+        None
+        """
+
+        if variable_hamiltonian is not None:
+            total_hamiltonian = self.fixed_hamiltonian + variable_hamiltonian
+        else:
+            total_hamiltonian = self.fixed_hamiltonian
+
+        eigenvals, eigenvects = eigh(total_hamiltonian)
+        idx = eigenvals.argsort()
+        eigenvals = eigenvals[idx][:nsols]
+        eigenvects = np.transpose(eigenvects) # To get column eigenvectors not column entries
+        eigenvects = eigenvects[idx][:nsols]
+        return eigenvals, eigenvects
+
+    def ground_state(self, variable_hamiltonian=None):
+        """
+        Wrapper around eigens function which returns the ground state energy and the ground state eigenvector with extra dimensions removed
+
+        Parameters
+        ----------
+        None
+
+        Keyword Arguments
+        -----------------
+        variable_hamiltonian: matrix which represents the variable part of the Hamiltonian to be added to the constant part of the Hamiltonian (default None)
+
+        Returns
+        -------
+        eigval: Number which represents the ground state energy
+        eigvect: 1D numpy array which represents the gorund state in th
+
+        """
+
+        # Calculate the eigenvectors and eigenvals using eigens, then only extract the first eigenenergy and 
+        eigval, eigvect = self.eigens(variable_hamiltonian=variable_hamiltonian)
+        eigval, eigvect = eigval[0], np.squeeze(eigvect)
+        return eigval, eigvect
 
 # This function is not for a general Hamiltonian
 class HamFunctions:
